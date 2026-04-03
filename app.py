@@ -35,7 +35,7 @@ from config import (
 
 
 def _data_mtime() -> float:
-    """`data/데이터.csv`가 바뀌면 캐시가 무효화되도록 수정 시각을 사용."""
+    """`config.DATA_PATH`(기본: data/데이터_preprocessed.csv)가 바뀌면 캐시가 무효화되도록 수정 시각을 사용."""
     p = Path(DATA_PATH)
     return float(p.stat().st_mtime) if p.is_file() else 0.0
 from modules.ml_predictor import (
@@ -226,7 +226,10 @@ try:
     data_ok = True
 except FileNotFoundError:
     st.error(f"⚠️ 데이터 파일을 찾을 수 없습니다: `{DATA_PATH}`")
-    st.info("프로젝트 루트에 `data/데이터.csv` 파일을 배치 후 재실행하세요.")
+    st.info(
+        "`data/데이터_preprocessed.csv`가 없습니다. `data/데이터.csv`를 둔 뒤 "
+        "`python modules/preprocess_데이터.py`로 생성하거나, `config.py`의 `DATA_PATH`를 확인하세요."
+    )
     st.stop()
 except Exception as e:
     st.error(f"데이터 로드 오류: {e}")

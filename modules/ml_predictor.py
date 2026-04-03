@@ -69,12 +69,13 @@ def _coerce_numeric_column(s: pd.Series) -> pd.Series:
 def load_data(path: str = DATA_PATH) -> pd.DataFrame:
     """CSV 파일을 읽어 datetime 파싱 및 기본 전처리 후 반환."""
     p = Path(path)
-    xlsx_alt = p.parent / "데이터.csv.xlsx"
+    xlsx_alt = p.with_suffix(".xlsx")
     if not p.is_file():
         if xlsx_alt.is_file():
             raise ValueError(
-                "`data/데이터.csv`가 없고 `데이터.csv.xlsx`(엑셀)만 있습니다. "
-                "「CSV UTF-8(쉼표로 분리)」로 저장해 `data/데이터.csv`로 두세요."
+                f"`{p.name}`가 없고 `{xlsx_alt.name}`(엑셀)만 있습니다. "
+                f"「CSV UTF-8(쉼표로 분리)」로 저장해 `data/{p.name}`로 두거나, "
+                "원본 `데이터.csv`에서 `python modules/preprocess_데이터.py`로 전처리 CSV를 만드세요."
             )
         raise FileNotFoundError(f"데이터 파일 없음: {p}")
 

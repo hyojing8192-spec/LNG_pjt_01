@@ -23,8 +23,9 @@ project/
 ├── requirements.txt       # 필요한 Python 패키지 목록
 ├── README.md              # 이 문서
 │
-├── data/                  # 원본·가공 CSV (앱은 기본적으로 `데이터.csv` 사용)
-│   └── 데이터.csv         # 시계열 본문 (config.DATA_PATH)
+├── data/                  # 원본 `데이터.csv` → 전처리 `데이터_preprocessed.csv` (앱·학습은 후자, config.DATA_PATH)
+│   ├── 데이터.csv         # 엑셀 등에서 내보낸 원본
+│   └── 데이터_preprocessed.csv  # `python modules/preprocess_데이터.py` 결과 (학습·예측 기본 입력)
 │
 ├── models/                # 학습된 XGBoost 모델(.pkl), metrics.pkl, impute_defaults.pkl
 │
@@ -67,7 +68,7 @@ pip install -r requirements.txt
 
 ### 3) 데이터 파일 준비
 
-- `data/데이터.csv`를 두세요. (파일명을 바꾸면 `config.py`의 `DATA_PATH`도 같이 수정)
+- 원본 `data/데이터.csv`를 둔 뒤 `python modules/preprocess_데이터.py`로 `data/데이터_preprocessed.csv`를 만듭니다. (파일명을 바꾸면 `config.py`의 `DATA_PATH`도 같이 수정)
 - CSV는 **시간 열(`구분` 또는 `datetime`)**과 **LNG발전량·SMP** 등이 포함된 형식이어야 합니다.
 
 ### 4) 앱 실행
@@ -80,7 +81,7 @@ streamlit run app.py
 
 ### 5) (선택) ML 재학습
 
-- **ML 예측** 탭에서 **「모델 재학습」**을 누르면 `data/데이터.csv`를 읽어 `models/` 아래에 모델이 저장됩니다.
+- **ML 예측** 탭에서 **「모델 재학습」**을 누르면 `config.DATA_PATH`(기본 `data/데이터_preprocessed.csv`)를 읽어 `models/` 아래에 모델이 저장됩니다.
 - 처음 실행 시 모델 파일이 없으면 자동으로 학습을 시도할 수 있습니다(시간이 걸릴 수 있음).
 
 ---
@@ -89,7 +90,7 @@ streamlit run app.py
 
 | 항목 | 설명 |
 |------|------|
-| `DATA_PATH` | 읽을 CSV 경로 (기본: `data/데이터.csv`) |
+| `DATA_PATH` | 읽을 CSV 경로 (기본: `data/데이터_preprocessed.csv`) |
 | `MODE_THRESHOLDS` | LNG발전량(kW)으로 1기 / 2기 저부하 / full부하 구간을 나누는 값 |
 | `ML_TEST_FRACTION` | 시계열 **뒤쪽 몇 %를 테스트 전용**으로 둘지 (기본 0.2 = 20%) |
 | `ELEC_RATES`, `LEGAL_HOLIDAYS` | 수전단가·공휴일 룰 |
@@ -103,7 +104,7 @@ streamlit run app.py
 ```mermaid
 flowchart TB
     subgraph 입력
-        CSV["data/데이터.csv"]
+        CSV["data/데이터_preprocessed.csv"]
         UI["Streamlit 사이드바<br/>LNG가·환율·날짜 등"]
     end
 

@@ -10,9 +10,10 @@ from pathlib import Path
 
 # ──────────────────────────────────────────────
 # 데이터 경로 (실행 위치와 무관하게 이 프로젝트 폴더 기준)
+# 원본: data/데이터.csv → `python modules/preprocess_데이터.py` 로 data/데이터_preprocessed.csv 생성
 # ──────────────────────────────────────────────
 _PROJECT_ROOT = Path(__file__).resolve().parent
-DATA_PATH = str(_PROJECT_ROOT / "data" / "데이터.csv")
+DATA_PATH = str(_PROJECT_ROOT / "data" / "데이터_preprocessed.csv")
 MODEL_DIR = str(_PROJECT_ROOT / "models")
 
 # ──────────────────────────────────────────────
