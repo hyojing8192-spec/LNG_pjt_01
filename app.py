@@ -65,6 +65,47 @@ def _hourly_optional_series(day_df: pd.DataFrame, col: str) -> list | None:
             out.append(float(v) if pd.notna(v) else None)
     return out
 
+
+def auto_lng_heat_mean(df: pd.DataFrame) -> float:
+    """과거·학습용 시계열 전체에서 LNG 열량 평균 (거의 상수로 활용)."""
+    if df is None or df.empty or "lng_heat" not in df.columns:
+        return 9.1
+    s = pd.to_numeric(df["lng_heat"], errors="coerce").dropna()
+    if s.empty:
+        return 9.1
+    return float(s.mean())
+
+
+def auto_exchange_rate_prev_day_mean(df: pd.DataFrame, target_date: date) -> float:
+    """
+    분석·예측 대상 날짜의 전날 시계열에서 환율 일평균(원/$).
+    전날 데이터가 없으면 그보다 이전 마지막 관측일 일평균 → 그것도 없으면 전체 중앙값.
+    """
+    if df is None or df.empty or "exchange_rate" not in df.columns:
+        return 1447.0
+    prev = target_date - timedelta(days=1)
+    d = df["datetime"].dt.date
+    mask = d == prev
+    sub = pd.to_numeric(df.loc[mask, "exchange_rate"], errors="coerce").dropna()
+    if len(sub) > 0:
+        return float(sub.mean())
+
+    before = df[df["datetime"].dt.date < target_date]
+    if before.empty:
+        s = pd.to_numeric(df["exchange_rate"], errors="coerce").dropna()
+        return float(s.median()) if len(s) else 1447.0
+
+    last_day = before["datetime"].dt.date.max()
+    sub2 = pd.to_numeric(
+        before.loc[before["datetime"].dt.date == last_day, "exchange_rate"],
+        errors="coerce",
+    ).dropna()
+    if len(sub2) > 0:
+        return float(sub2.mean())
+
+    s = pd.to_numeric(df["exchange_rate"], errors="coerce").dropna()
+    return float(s.median()) if len(s) else 1447.0
+
 # ──────────────────────────────────────────────────────────────
 # 페이지 설정
 # ──────────────────────────────────────────────────────────────
@@ -181,39 +222,39 @@ st.markdown("""
 # 사이드바 입력 패널
 # ──────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## ⚙️ 운전 파라미터")
-    st.markdown("---")
-
-    lng_price     = st.number_input("LNG 가격 ($/MMBtu)",  min_value=1.0,  max_value=30.0, value=13.5,  step=0.1)
-    exchange_rate = st.number_input("환율 (원/$)",         min_value=900.0, max_value=2000.0, value=1447.0, step=1.0)
-    lng_heat      = st.number_input("LNG 열량 (Mcal/Nm³)", min_value=8.0,  max_value=11.0, value=9.10,  step=0.01)
-
-    st.markdown("---")
-    st.markdown("## 📅 분석 날짜")
+    st.markdown("## 📅 분석")
 
     try:
         df_tmp = cached_load_data(_data_mtime())
         min_date = df_tmp["datetime"].min().date()
         max_date = df_tmp["datetime"].max().date()
     except Exception:
+        df_tmp = None
         min_date = date(2025, 1, 1)
         max_date = date(2026, 2, 28)
 
     target_date = st.date_input(
-        "분석 날짜 선택",
+        "보는 날짜",
         value=min_date + timedelta(days=90),
         min_value=min_date,
         max_value=max_date,
     )
 
-    st.markdown("---")
-    st.markdown("## 📊 데이터 현황")
-    try:
-        df_info = cached_load_data(_data_mtime())
-        st.metric("총 데이터 수", f"{len(df_info):,}시간")
-        st.metric("기간", f"{min_date} ~ {max_date}")
-    except Exception:
-        st.warning("데이터 로드 실패")
+    lng_price = st.number_input(
+        "LNG 가격 ($/MMBtu)",
+        min_value=1.0,
+        max_value=30.0,
+        value=13.5,
+        step=0.1,
+        help="예측·경제성 계산에 적용됩니다.",
+    )
+
+    if df_tmp is not None and not df_tmp.empty:
+        lng_heat = auto_lng_heat_mean(df_tmp)
+        exchange_rate = auto_exchange_rate_prev_day_mean(df_tmp, target_date)
+    else:
+        lng_heat = 9.1
+        exchange_rate = 1447.0
 
 
 # ──────────────────────────────────────────────────────────────
@@ -250,6 +291,12 @@ tab_ml, tab_econ, tab_anomaly = st.tabs([
 # TAB 1: ML 예측 (F2)
 # ══════════════════════════════════════════════════════════════
 with tab_ml:
+    _data_min = df["datetime"].min().date()
+    _data_max = df["datetime"].max().date()
+    st.caption(
+        f"학습·참조 시계열 **{len(df):,}**시간 · 데이터 기간 **{_data_min}** ~ **{_data_max}**"
+    )
+
     st.subheader("운전모드별 설비특성 ML 예측")
 
     col_retrain, col_info = st.columns([1, 3])
@@ -266,7 +313,10 @@ with tab_ml:
                     st.error(f"재학습 실패: {e}")
 
     with col_info:
-        st.caption(f"분석 날짜: **{target_date}** · LNG {lng_price}$/MMBtu · 환율 {exchange_rate:,.0f}원/$ · 열량 {lng_heat} Mcal/Nm³")
+        st.caption(
+            f"분석 날짜: **{target_date}** · LNG {lng_price}$/MMBtu · "
+            f"환율 {exchange_rate:,.0f}원/$ (전일 평균) · 열량 {lng_heat:.4f} (과거 평균)"
+        )
 
     # ── 모델 성능 지표 ──
     st.markdown("#### 📈 모델 성능 (train · CV · 시계열 test)")
@@ -380,6 +430,17 @@ with tab_econ:
     if day_df.empty:
         st.warning(f"선택 날짜({target_date}) 데이터가 없습니다.")
     else:
+        _prev = target_date - timedelta(days=1)
+        st.markdown(
+            f"**적용 파라미터** · LNG 가격 **{lng_price:.2f}** $/MMBtu (입력) · "
+            f"환율 **{exchange_rate:,.0f}** 원/$ (전일 {_prev} 일평균) · "
+            f"LNG 열량 **{lng_heat:.4f}** Mcal/N㎥ (과거 데이터 평균)"
+        )
+        st.caption(
+            "환율은 원리적으로 시계열·ML로 ‘예측’할 수 있으나, 금융·거시 변수라 별도 데이터·모델이 필요합니다. "
+            "이 화면에서는 미래 환율을 외삽하지 않고 **분석일 전날의 관측 일평균**을 적용합니다."
+        )
+
         smp_series = day_df["smp"].fillna(0).tolist()
         lng_gen_h = _hourly_optional_series(day_df, "lng_gen")
         net_load_h = _hourly_optional_series(day_df, "net_load")
@@ -482,12 +543,6 @@ with tab_econ:
             legend=dict(orientation="h", yanchor="bottom", y=1.05),
         )
         st.plotly_chart(fig_mode, use_container_width=True)
-
-        fx1, fx2 = st.columns(2)
-        with fx1:
-            st.metric("적용 LNG 가격 (사이드바)", f"{lng_price:.2f} $/MMBtu")
-        with fx2:
-            st.metric("적용 환율", f"{exchange_rate:,.0f} 원/$")
 
         # ── 상세 테이블 ──
         with st.expander("📋 24시간 상세 경제성 테이블", expanded=False):
